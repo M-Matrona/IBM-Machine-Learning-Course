@@ -90,59 +90,12 @@ def course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_
     res = {k: v for k, v in sorted(res.items(), key=lambda item: item[1], reverse=True)}
     return res
 
-def generate_recommendation_scores_user_profile(user_ids, res_dict):
-    import numpy as np
-    users = []
-    courses = []
-    scores = []
+def top_courses(params, courses, res_df):
     
-    idx_id_dict, id_idx_dict=get_doc_dicts()
-    profile_df=load_profiles()
+    if "top_courses" in params and params['top_courses'] <= len(courses):
+            res_df=res_df.iloc[0:params['top_courses'],:]
     
-    test_user_ids =user_ids
-    all_courses = set(idx_id_dict.values())
-    
-    
-    course_genres_df = load_course_genres()
-    
-    profile=np.zeros([1,14])
-    for course in list(res_dict['item']):
-        profile=profile + np.array(course_genres_df[course_genres_df['COURSE_ID']==course].iloc[:,2:])
-        
-    pd.DataFrame
-    profile_df[user_ids]=profile #this is where I got stuck
-    
-    unselected_course_ids = all_courses.difference(enrolled_course_ids)
-    
-    
-    for user_id in test_user_ids:
-        test_user_profile = profile_df[profile_df['user'] == user_id]
-        # get user vector for the current user id
-        test_user_vector = test_user_profile.iloc[0,1:].values #array of this users weighted genre matrix
-        
-        # get the unknown course ids for the current user id
-        enrolled_courses = test_users_df[test_users_df['user'] == user_id]['item'].to_list()
-        unknown_courses = all_courses.difference(enrolled_courses)
-        unknown_course_df = course_genres_df[course_genres_df['COURSE_ID'].isin(unknown_courses)]
-        unknown_course_ids = unknown_course_df['COURSE_ID'].values
-        
-        # user np.dot() to get the recommendation scores for each course
-        unknown_course_genres=unknown_course_df.iloc[:,2:].values
-        recommendation_scores = np.dot(test_user_vector,unknown_course_genres.T)
- 
-
-        # Append the results into the users, courses, and scores list
-        for i in range(0, len(unknown_course_ids)):
-            score = recommendation_scores[i]
-            # Only keep the courses with high recommendation score
-            if score >= score_threshold:
-                users.append(user_id)
-                courses.append(unknown_course_ids[i])
-                scores.append(recommendation_scores[i])
-        res_df=pd.DataFrame({'COURSE_ID':courses, 'SCORE':score})       
-        
     return res_df
-
 
 
 # Model training
@@ -151,18 +104,22 @@ def train(model_name, params):
     if model_name==models[0]: 
         pass
     elif model_name==models[1]:
-        test_users_df=load_ratings()
-        test_users = test_users_df.groupby(['user']).max().reset_index(drop=False)
-        return test_users
+        pass
+    else:
+        pass
         
-
+def build_results_df(users, courses, scores):
+    return
 
 # Prediction
 def predict(model_name, user_ids, params, res_dict):
     if model_name==models[0]: 
+        
         sim_threshold = 0.6
+        
         if "sim_threshold" in params:
             sim_threshold = params["sim_threshold"] / 100.0
+            
         idx_id_dict, id_idx_dict = get_doc_dicts()
         sim_matrix = load_course_sims().to_numpy()
         users = []
@@ -188,8 +145,80 @@ def predict(model_name, user_ids, params, res_dict):
         res_dict['COURSE_ID'] = courses
         res_dict['SCORE'] = scores
         res_df = pd.DataFrame(res_dict, columns=['USER', 'COURSE_ID', 'SCORE'])
+        res_df.sort_values(by=['SCORE'], ascending=False)
+        
+        
+        res_df=top_courses(params, courses, res_df)    
+        
         return res_df
     
     elif model_name==models[1]:
-        return generate_recommendation_scores_user_profile(user_ids, res_dict)
+        return generate_recommendation_scores_user_profile(user_ids, res_dict, params)
+
+def generate_recommendation_scores_user_profile(user_ids, res_dict, params):
+    
+    users = []
+    courses = []
+    scores = []
+    
+    score_threshold = 0.6
+    
+    if "sim_threshold" in params:
+        score_threshold = params["sim_threshold"] / 100.0
+    
+    idx_id_dict, id_idx_dict=get_doc_dicts()
+    profile_df=load_profiles()
+    
+    test_user_ids=user_ids
+    all_courses = set(idx_id_dict.values())
+    
+    course_genres_df = load_course_genres()
+    
+    # """
+    # We need to build a profile vector from the selected courses
+    # """    
+    profile=np.zeros(14) #empty profile series
+    
+    
+    for course in list(res_dict['item']):
+    
+        profile=profile + np.array(course_genres_df[course_genres_df['COURSE_ID']==course].iloc[0,2:])*3.0
         
+    
+    unselected_course_ids = all_courses.difference(set(res_dict['item']))
+    
+    for user_id in test_user_ids:
+        
+        # get user vector for the current user id
+
+        test_user_vector=profile
+        
+        # get the unknown course ids for the current user id
+        enrolled_courses = list(res_dict['item'])
+        unknown_courses = all_courses.difference(enrolled_courses)
+        unknown_course_df = course_genres_df[course_genres_df['COURSE_ID'].isin(unknown_courses)]
+        unknown_course_ids = unknown_course_df['COURSE_ID'].values
+        
+        # user np.dot() to get the recommendation scores for each course
+        unknown_course_genres=unknown_course_df.iloc[:,2:].values
+        recommendation_scores = np.dot(test_user_vector,unknown_course_genres.T)
+        
+        
+        # Append the results into the users, courses, and scores list
+        for i in range(0, len(unknown_course_ids)):
+            score = recommendation_scores[i]/max(recommendation_scores)
+            # Only keep the courses with high recommendation score
+            if score >= score_threshold:
+                users.append(user_id)
+                courses.append(unknown_course_ids[i])
+                scores.append(score)
+                
+        res_dict['USER'] = users
+        res_dict['COURSE_ID'] = courses
+        res_dict['SCORE'] = scores
+        res_df = pd.DataFrame(res_dict, columns=['USER', 'COURSE_ID', 'SCORE'])
+                
+        res_df=top_courses(params, courses, res_df)       
+        
+    return res_df        
+# 
