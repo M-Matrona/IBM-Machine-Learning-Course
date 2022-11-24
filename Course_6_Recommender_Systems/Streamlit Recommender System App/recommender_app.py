@@ -7,6 +7,9 @@ from st_aggrid import AgGrid
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 from st_aggrid import GridUpdateMode, DataReturnMode
 
+
+
+
 # Basic webpage setup
 st.set_page_config(
    page_title="Course Recommender System",
@@ -43,6 +46,10 @@ def load_bow():
 @st.cache
 def load_genres():
     return backend.load_course_genres()
+
+@st.cache
+def load_profiles():
+    return backend.load_profiles()
 
 # Initialize the app by first loading datasets
 def init__recommender_app():
@@ -90,13 +97,26 @@ def train(model_name, params):
     if model_name == backend.models[0]:
         # Start training course similarity model
         params['enrolled_course_ids'] = selected_courses_df['COURSE_ID']
+        
         with st.spinner('Training...'):
             time.sleep(0.5)
             backend.train(model_name,params)
+            
         st.success('Done!')
     # TODO: Add other model training code here
-    elif model_name == backend.models[1]:
-        pass
+    elif model_name == backend.models[2]:
+        
+        params['enrolled_course_ids'] = selected_courses_df['COURSE_ID']
+        
+        with st.spinner('Training...'):
+            time.sleep(0.5)
+            kmeans= backend.train(model_name,params)
+            
+        st.success('Done!')
+        
+        
+        st.write(type(kmeans))
+        
     else:
         pass
 
@@ -149,16 +169,21 @@ elif model_selection == backend.models[1]:
                                     min_value=0, max_value=100,
                                     value=10, step=1)
     
-    profile_sim_threshold = st.sidebar.slider('User Profile Similarity Threshold %',
-                                              min_value=0, max_value=100,
-                                              value=50, step=10)
-    params['sim_threshold'] = profile_sim_threshold
+    
+    params['top_courses'] = top_courses
     
 # Clustering model
 elif model_selection == backend.models[2]:
     cluster_no = st.sidebar.slider('Number of Clusters',
                                    min_value=0, max_value=50,
                                    value=20, step=1)
+    
+    params['cluster_no'] = cluster_no
+    
+    top_courses = st.sidebar.slider('Top courses',
+                                    min_value=0, max_value=50,
+                                    value=3, step=1)
+    params['top_courses'] = top_courses
 else:
     pass
 
@@ -178,9 +203,13 @@ st.sidebar.subheader('4. Prediction')
 pred_button = st.sidebar.button("Recommend New Courses")
 if pred_button and selected_courses_df.shape[0] > 0:
     # Create a new id for current user session
-    new_id, res_dict = backend.add_new_ratings(selected_courses_df['COURSE_ID'].values)
+    new_id, user_df, profile = backend.add_new_ratings(selected_courses_df['COURSE_ID'].values)
     user_ids = [new_id]
-    res_df = predict(model_selection, user_ids, params, res_dict)
+    
+    params['profile']=profile
+    params['new_user']=new_id
+    
+    res_df = predict(model_selection, user_ids, params, user_df)
     res_df = res_df[['COURSE_ID', 'SCORE']]
     course_df = load_courses()
     res_df = pd.merge(res_df, course_df, on=["COURSE_ID"]).drop('COURSE_ID', axis=1)

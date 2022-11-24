@@ -1,6 +1,13 @@
 import pandas as pd
 import numpy as np
 
+import streamlit as st
+
+#kmeans
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+
 models = ("Course Similarity",
           "User Profile",
           "Clustering",
@@ -53,12 +60,17 @@ def add_new_ratings(new_courses):
         res_dict['user'] = users
         res_dict['item'] = new_courses
         res_dict['rating'] = ratings
-        new_df = pd.DataFrame(res_dict)
-        updated_ratings = pd.concat([ratings_df, new_df])
-        updated_ratings.to_csv("ratings.csv", index=False)
-        return new_id, res_dict
-
-
+        user_df = pd.DataFrame(res_dict)
+        updated_ratings = pd.concat([ratings_df, user_df])
+        
+        #i don't like writing to the csv because there is no
+        #history of prior runs
+        
+        #updated_ratings.to_csv("ratings.csv", index=False)
+        
+        profile=build_profile_vector(new_courses,new_id)
+        
+        return new_id, user_df, profile
 
 # Create course id to index and index to id mappings
 def get_doc_dicts():
@@ -69,7 +81,28 @@ def get_doc_dicts():
     del grouped_df
     return idx_id_dict, id_idx_dict
 
-
+def build_profile_vector(courses,new_id):
+    
+    course_genres_df=load_course_genres()
+    profile_df=load_profiles()
+    
+    profile=np.zeros(14) #empty profile series
+    
+    for course in courses:
+        profile=profile + np.array(course_genres_df[course_genres_df['COURSE_ID']==course].iloc[0,2:])*3.0
+        
+    # """
+    # turned off adding to csvs for same reason as above
+    # """    
+    
+    # cp=np.insert(profile, [0], new_id)    
+    # dft=pd.DataFrame(cp.reshape(1,-1),columns=profile_df.columns)
+    # profile_df=profile_df.append(dft,ignore_index=True)
+    #profile_df.to_csv('profile_df.csv', index=False)
+    
+    
+    return profile    
+    
 def course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_ids, sim_matrix):
     all_courses = set(idx_id_dict.values())
     unselected_course_ids = all_courses.difference(enrolled_course_ids)
@@ -90,6 +123,57 @@ def course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_
     res = {k: v for k, v in sorted(res.items(), key=lambda item: item[1], reverse=True)}
     return res
 
+def generate_recommendation_scores_user_profile(user_ids, user_df, params):
+    
+    users = []
+    courses = []
+    scores = []
+    
+    score_threshold = 0.6
+    
+    
+    idx_id_dict, id_idx_dict=get_doc_dicts()
+    profile_df=load_profiles()
+    
+    test_user_ids=user_ids
+    all_courses = set(idx_id_dict.values())
+    
+    course_genres_df = load_course_genres()
+        
+    profile=params['profile']
+    
+    unselected_course_ids = all_courses.difference(set(user_df['item']))
+    
+    for user_id in test_user_ids:
+        
+        # get user vector for the current user id
+
+        test_user_vector=profile
+        
+        # get the unknown course ids for the current user id
+        enrolled_courses = list(user_df['item'])
+        unknown_courses = all_courses.difference(enrolled_courses)
+        unknown_course_df = course_genres_df[course_genres_df['COURSE_ID'].isin(unknown_courses)]
+        unknown_course_ids = unknown_course_df['COURSE_ID'].values
+        
+        # user np.dot() to get the recommendation scores for each course
+        unknown_course_genres=unknown_course_df.iloc[:,2:].values
+        recommendation_scores = np.dot(test_user_vector,unknown_course_genres.T)
+        
+        
+        # Append the results into the users, courses, and scores list
+        for i in range(0, len(unknown_course_ids)):
+            score = recommendation_scores[i]
+            # Only keep the courses with high recommendation score
+            if score >= score_threshold:
+                users.append(user_id)
+                courses.append(unknown_course_ids[i])
+                scores.append(score)
+                
+        res_df=build_results_df(users, courses, scores, params)        
+        
+    return res_df 
+       
 def top_courses(params, courses, res_df):
     
     if "top_courses" in params and params['top_courses'] <= len(courses):
@@ -97,22 +181,36 @@ def top_courses(params, courses, res_df):
     
     return res_df
 
+def combine_cluster_labels(user_ids, labels):
+    labels_df = pd.DataFrame(labels)
+    cluster_df = pd.merge(user_ids, labels_df, left_index=True, right_index=True)
+    cluster_df.columns = ['user', 'cluster']
+    return cluster_df
+
 
 # Model training
 def train(model_name, params):
     # TODO: Add model training code here
     if model_name==models[0]: 
         pass
-    elif model_name==models[1]:
+    elif model_name==models[2]:
         pass
     else:
         pass
         
-def build_results_df(users, courses, scores):
-    return
+def build_results_df(users, courses, scores, params):
+    res_dict = {}
+    res_dict['USER'] = users
+    res_dict['COURSE_ID'] = courses
+    res_dict['SCORE'] = scores
+    res_df = pd.DataFrame(res_dict, columns=['USER', 'COURSE_ID', 'SCORE'])
+    
+    res_df=top_courses(params, courses, res_df.sort_values(by=['SCORE'], ascending=False)) 
+    
+    return res_df
 
 # Prediction
-def predict(model_name, user_ids, params, res_dict):
+def predict(model_name, user_ids, params, user_df):
     if model_name==models[0]: 
         
         sim_threshold = 0.6
@@ -125,13 +223,12 @@ def predict(model_name, user_ids, params, res_dict):
         users = []
         courses = []
         scores = []
-        res_dict = {}
     
         for user_id in user_ids:
             # Course Similarity model
             if model_name == models[0]:
                 ratings_df = load_ratings()
-                user_ratings = ratings_df[ratings_df['user'] == user_id]
+                user_ratings = user_df#ratings_df[ratings_df['user'] == user_id]
                 enrolled_course_ids = user_ratings['item'].to_list()
                 res = course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_ids, sim_matrix)
                 for key, score in res.items():
@@ -140,85 +237,64 @@ def predict(model_name, user_ids, params, res_dict):
                         courses.append(key)
                         scores.append(score)
             # TODO: Add prediction model code here
-    
-        res_dict['USER'] = users
-        res_dict['COURSE_ID'] = courses
-        res_dict['SCORE'] = scores
-        res_df = pd.DataFrame(res_dict, columns=['USER', 'COURSE_ID', 'SCORE'])
-        res_df.sort_values(by=['SCORE'], ascending=False)
         
-        
-        res_df=top_courses(params, courses, res_df)    
+        res_df=build_results_df(users, courses, scores, params) 
         
         return res_df
     
     elif model_name==models[1]:
-        return generate_recommendation_scores_user_profile(user_ids, res_dict, params)
+        return generate_recommendation_scores_user_profile(user_ids, user_df, params)
+    
+    elif model_name==models[2]:
+        #train the model on existing data.  Use it for labelleling
+        kmeans, cluster_df=train_kmeans(params)
+        
+        #grab the profile vector for the current user.        
+        profile=params['profile']
+        
+        #predict the label of the current user
+        label=float(kmeans.predict(profile.reshape(1,-1)))
+        
+        #load the user/enrolled courses data
+        test_users_df=load_ratings()[['user','item']]
+        
+        #label the rating data with clusters
+        test_users_labelled = pd.merge(test_users_df, cluster_df, left_on='user', right_on='user')
+        
+        #keep only the data of the cluster of interest
+        labelled_df=test_users_labelled[test_users_labelled['cluster']==label]
 
-def generate_recommendation_scores_user_profile(user_ids, res_dict, params):
-    
-    users = []
-    courses = []
-    scores = []
-    
-    score_threshold = 0.6
-    
-    if "sim_threshold" in params:
-        score_threshold = params["sim_threshold"] / 100.0
-    
-    idx_id_dict, id_idx_dict=get_doc_dicts()
-    profile_df=load_profiles()
-    
-    test_user_ids=user_ids
-    all_courses = set(idx_id_dict.values())
-    
-    course_genres_df = load_course_genres()
-    
-    # """
-    # We need to build a profile vector from the selected courses
-    # """    
-    profile=np.zeros(14) #empty profile series
-    
-    
-    for course in list(res_dict['item']):
-    
-        profile=profile + np.array(course_genres_df[course_genres_df['COURSE_ID']==course].iloc[0,2:])*3.0
+        #add a count column for aggregation
+        labelled_df['count']=[1]*len(labelled_df)
         
-    
-    unselected_course_ids = all_courses.difference(set(res_dict['item']))
-    
-    for user_id in test_user_ids:
-        
-        # get user vector for the current user id
+        #aggregate the number of counts
+        count_df=labelled_df.groupby(['item']).agg('count').sort_values(by='count',ascending=False)
+        count_df=count_df[['count']]
+        count_df.drop(labels=user_df['item'], errors='ignore',inplace=True)
+           
+        #list of courses and the number of times they appeared in cluster
+        courses=list(count_df.index)
+        scores=list(count_df['count'])
 
-        test_user_vector=profile
+        users=[params['new_user']]*len(courses)
         
-        # get the unknown course ids for the current user id
-        enrolled_courses = list(res_dict['item'])
-        unknown_courses = all_courses.difference(enrolled_courses)
-        unknown_course_df = course_genres_df[course_genres_df['COURSE_ID'].isin(unknown_courses)]
-        unknown_course_ids = unknown_course_df['COURSE_ID'].values
-        
-        # user np.dot() to get the recommendation scores for each course
-        unknown_course_genres=unknown_course_df.iloc[:,2:].values
-        recommendation_scores = np.dot(test_user_vector,unknown_course_genres.T)
-        
-        
-        # Append the results into the users, courses, and scores list
-        for i in range(0, len(unknown_course_ids)):
-            score = recommendation_scores[i]/max(recommendation_scores)
-            # Only keep the courses with high recommendation score
-            if score >= score_threshold:
-                users.append(user_id)
-                courses.append(unknown_course_ids[i])
-                scores.append(score)
-                
-        res_dict['USER'] = users
-        res_dict['COURSE_ID'] = courses
-        res_dict['SCORE'] = scores
-        res_df = pd.DataFrame(res_dict, columns=['USER', 'COURSE_ID', 'SCORE'])
-                
-        res_df=top_courses(params, courses, res_df)       
-        
-    return res_df        
+        res_df=build_results_df(users, courses, scores, params) 
+             
+        return res_df
+    
+def train_kmeans(params):
+    
+    user_profile_df=load_profiles()
+    feature_names = list(user_profile_df.columns[1:])
+    scaler = StandardScaler()
+    user_profile_df[feature_names] = scaler.fit_transform(user_profile_df[feature_names])
+    features = user_profile_df.loc[:, user_profile_df.columns != 'user']
+    user_ids = user_profile_df.loc[:, user_profile_df.columns == 'user']
+    kmeans= KMeans(n_clusters=params['cluster_no'])
+    kmeans.fit(features)
+             
+    cluster_df=combine_cluster_labels(user_ids, kmeans.labels_)
+    
+    return kmeans, cluster_df
+
 # 
