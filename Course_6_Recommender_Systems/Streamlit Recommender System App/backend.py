@@ -58,7 +58,7 @@ def get_doc_dicts():
     return idx_id_dict, id_idx_dict
 
 
-def add_new_ratings(new_courses):
+def add_new_ratings(new_courses, params):
     res_dict = {}
     if len(new_courses) > 0:
         # Create a new user id, max id + 1
@@ -75,10 +75,13 @@ def add_new_ratings(new_courses):
             updated_ratings = pd.concat([ratings_df, user_df])
             updated_ratings.to_csv("ratings.csv", index=False)        
         
-        
         profile=build_profile_vector(new_courses,new_id)
         
-        return new_id, user_df, profile
+        params['profile']=profile
+        params['new_user_id']=new_id
+        params['user_df']=user_df
+        
+        return params
 
 def build_profile_vector(courses,new_id):
     
@@ -277,7 +280,7 @@ def predict(model_name, user_ids, params, user_df):
         courses=list(count_df.index)
         scores=list(count_df['count'])
 
-        users=[params['new_user']]*len(courses)
+        users=[params['new_user_id']]*len(courses)
         
         res_df=build_results_df(users, courses, scores, params) 
              

@@ -203,13 +203,12 @@ st.sidebar.subheader('4. Prediction')
 pred_button = st.sidebar.button("Recommend New Courses")
 if pred_button and selected_courses_df.shape[0] > 0:
     # Create a new id for current user session
-    new_id, user_df, profile = backend.add_new_ratings(selected_courses_df['COURSE_ID'].values)
+    params = backend.add_new_ratings(selected_courses_df['COURSE_ID'].values, params)
     
     #the original models took a list of user ids to recommend new courses for each user in the dataset
-    user_ids = [new_id]
+    user_ids = [params['new_user_id']]
+    user_df=params['user_df']
     
-    params['profile']=profile
-    params['new_user']=new_id
     
     res_df = predict(model_selection, user_ids, params, user_df)
     res_df = res_df[['COURSE_ID', 'SCORE']]
