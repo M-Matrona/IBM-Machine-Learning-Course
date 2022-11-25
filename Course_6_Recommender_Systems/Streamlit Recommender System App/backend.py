@@ -48,6 +48,15 @@ def load_bow():
 def load_profiles():
     return pd.read_csv('profile_df.csv')
 
+# Create course id to index and index to id mappings
+def get_doc_dicts():
+    bow_df = load_bow()
+    grouped_df = bow_df.groupby(['doc_index', 'doc_id']).max().reset_index(drop=False)
+    idx_id_dict = grouped_df[['doc_id']].to_dict()['doc_id']
+    id_idx_dict = {v: k for k, v in idx_id_dict.items()}
+    del grouped_df
+    return idx_id_dict, id_idx_dict
+
 
 def add_new_ratings(new_courses):
     res_dict = {}
@@ -61,25 +70,15 @@ def add_new_ratings(new_courses):
         res_dict['item'] = new_courses
         res_dict['rating'] = ratings
         user_df = pd.DataFrame(res_dict)
-        updated_ratings = pd.concat([ratings_df, user_df])
         
-        #i don't like writing to the csv because there is no
-        #history of prior runs
+        if not (user_df.iloc[-1,1:]==ratings_df.iloc[-1,1:]).all():
+            updated_ratings = pd.concat([ratings_df, user_df])
+            updated_ratings.to_csv("ratings.csv", index=False)        
         
-        #updated_ratings.to_csv("ratings.csv", index=False)
         
         profile=build_profile_vector(new_courses,new_id)
         
         return new_id, user_df, profile
-
-# Create course id to index and index to id mappings
-def get_doc_dicts():
-    bow_df = load_bow()
-    grouped_df = bow_df.groupby(['doc_index', 'doc_id']).max().reset_index(drop=False)
-    idx_id_dict = grouped_df[['doc_id']].to_dict()['doc_id']
-    id_idx_dict = {v: k for k, v in idx_id_dict.items()}
-    del grouped_df
-    return idx_id_dict, id_idx_dict
 
 def build_profile_vector(courses,new_id):
     
@@ -95,10 +94,12 @@ def build_profile_vector(courses,new_id):
     # turned off adding to csvs for same reason as above
     # """    
     
-    # cp=np.insert(profile, [0], new_id)    
-    # dft=pd.DataFrame(cp.reshape(1,-1),columns=profile_df.columns)
-    # profile_df=profile_df.append(dft,ignore_index=True)
-    #profile_df.to_csv('profile_df.csv', index=False)
+    cp=np.insert(profile, [0], new_id)    
+    dft=pd.DataFrame(cp.reshape(1,-1),columns=profile_df.columns)
+    
+    if not (dft.iloc[-1,1:]==profile_df.iloc[-1,1:]).all():
+        updated_profiles= pd.concat([profile_df, dft])
+        updated_profiles.to_csv('profile_df.csv', index=False)
     
     
     return profile    
