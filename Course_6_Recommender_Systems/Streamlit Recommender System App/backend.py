@@ -132,11 +132,13 @@ def course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_
     res = {k: v for k, v in sorted(res.items(), key=lambda item: item[1], reverse=True)}
     return res
 
-def generate_recommendation_scores_user_profile(user_df, params):
+def generate_recommendation_scores_user_profile(params):
     
     users = []
     courses = []
     scores = []
+    
+    user_df=params['user_df']
     
     score_threshold = 0.6
     
@@ -219,8 +221,10 @@ def build_results_df(users, courses, scores, params):
     return res_df
 
 # Prediction
-def predict(model_name, params, user_df):
-    if model_name==models[0]: 
+def predict(model_name, params):   
+    
+    
+    if model_name==models[0]: # Course Similarity model
         
         sim_threshold = 0.6
         
@@ -232,12 +236,15 @@ def predict(model_name, params, user_df):
         users = []
         courses = []
         scores = []
+        
+        #initialize list for iteration.  This is only to reuse the existing code
+        current_user_id=[params['new_user_id']]
     
-        for user_id in [params['new_user_id']]:
-            # Course Similarity model
+        for user_id in current_user_id:
+            
             if model_name == models[0]:
                 ratings_df = load_ratings()
-                user_ratings = user_df#ratings_df[ratings_df['user'] == user_id]
+                user_ratings = params['user_df']
                 enrolled_course_ids = user_ratings['item'].to_list()
                 res = course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_ids, sim_matrix)
                 for key, score in res.items():
@@ -245,16 +252,19 @@ def predict(model_name, params, user_df):
                         users.append(user_id)
                         courses.append(key)
                         scores.append(score)
-            # TODO: Add prediction model code here
+            
         
         res_df=build_results_df(users, courses, scores, params) 
         
         return res_df
     
-    elif model_name==models[1]:
-        return generate_recommendation_scores_user_profile(user_df, params)
+    elif model_name==models[1]:# User Profile Model
+        return generate_recommendation_scores_user_profile(params)
     
-    elif model_name==models[2]:
+    elif model_name==models[2]: # Kmeans Model
+    
+        user_df=params['user_df']
+    
         #train the model on existing data.  Use it for labelling
         kmeans, cluster_df=train_kmeans(params)
         
