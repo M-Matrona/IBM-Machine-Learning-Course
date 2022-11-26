@@ -61,13 +61,13 @@ def add_new_ratings(new_courses, params):
     res_dict = {}
     if len(new_courses) > 0:
         # Create a new user id, max id + 1
-        ratings_df = load_ratings()
-        new_id = ratings_df['user'].max() + 1
-        users = [new_id] * len(new_courses)
-        ratings = [3.0] * len(new_courses)
-        res_dict['user'] = users
-        res_dict['item'] = new_courses
-        res_dict['rating'] = ratings
+        ratings_df=load_ratings()
+        new_id=ratings_df['user'].max() + 1
+        users=[new_id] * len(new_courses)
+        ratings=[3.0] * len(new_courses)
+        res_dict['user']=users
+        res_dict['item']=new_courses
+        res_dict['rating']=ratings
         user_df = pd.DataFrame(res_dict)
         
         if not (user_df.iloc[-1,1:]==ratings_df.iloc[-1,1:]).all():
@@ -102,8 +102,7 @@ def build_profile_vector(courses,new_id):
     if not (dft.iloc[-1,1:]==profile_df.iloc[-1,1:]).all():
         updated_profiles=pd.concat([profile_df, dft])
         updated_profiles.to_csv('profile_df.csv', index=False)
-    
-    
+       
     return profile    
     
 def course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_ids, sim_matrix):
@@ -184,9 +183,9 @@ def top_courses(params, courses, res_df):
     
     return res_df
 
-def combine_cluster_labels(user_ids, labels):
+def combine_cluster_labels(kmeans_ids, labels):
     labels_df = pd.DataFrame(labels)
-    cluster_df = pd.merge(user_ids, labels_df, left_index=True, right_index=True)
+    cluster_df = pd.merge(kmeans_ids, labels_df, left_index=True, right_index=True)
     cluster_df.columns = ['user', 'cluster']
     return cluster_df
 
@@ -213,7 +212,7 @@ def build_results_df(users, courses, scores, params):
     return res_df
 
 # Prediction
-def predict(model_name, user_ids, params, user_df):
+def predict(model_name, params, user_df):
     if model_name==models[0]: 
         
         sim_threshold = 0.6
@@ -292,13 +291,13 @@ def train_kmeans(params):
     user_profile_df=load_profiles()
     feature_names = list(user_profile_df.columns[1:])
     scaler = StandardScaler()
-    user_profile_df[feature_names] = scaler.fit_transform(user_profile_df[feature_names])
-    features = user_profile_df.loc[:, user_profile_df.columns != 'user']
-    user_ids = user_profile_df.loc[:, user_profile_df.columns == 'user']
+    user_profile_df[feature_names]=scaler.fit_transform(user_profile_df[feature_names])
+    features=user_profile_df.loc[:, user_profile_df.columns != 'user']
+    kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
     kmeans= KMeans(n_clusters=params['cluster_no'])
     kmeans.fit(features)
              
-    cluster_df=combine_cluster_labels(user_ids, kmeans.labels_)
+    cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
     
     return kmeans, cluster_df
 

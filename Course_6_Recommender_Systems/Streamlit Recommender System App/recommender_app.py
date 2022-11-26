@@ -149,10 +149,12 @@ params = {}
 st.sidebar.subheader('2. Tune Hyper-parameters: ')
 # Course similarity model
 if model_selection == backend.models[0]:
+    
     # Add a slide bar for selecting top courses
     top_courses = st.sidebar.slider('Top courses',
                                     min_value=0, max_value=15,
                                     value=10, step=1)
+    
     # Add a slide bar for choosing similarity threshold
     course_sim_threshold = st.sidebar.slider('Course Similarity Threshold %',
                                              min_value=0, max_value=100,
@@ -174,6 +176,7 @@ elif model_selection == backend.models[1]:
     
 # Clustering model
 elif model_selection == backend.models[2]:
+    
     cluster_no = st.sidebar.slider('Number of Clusters',
                                    min_value=0, max_value=50,
                                    value=20, step=1)
@@ -183,10 +186,11 @@ elif model_selection == backend.models[2]:
     top_courses = st.sidebar.slider('Top courses',
                                     min_value=0, max_value=15,
                                     value=3, step=1)
+    
     params['top_courses'] = top_courses
+    
 else:
     pass
-
 
 # Training
 st.sidebar.subheader('3. Training: ')
@@ -196,9 +200,9 @@ training_text = st.sidebar.text('')
 if training_button:
     train(model_selection, params)
 
-
 # Prediction
 st.sidebar.subheader('4. Prediction')
+
 # Start prediction process
 pred_button = st.sidebar.button("Recommend New Courses")
 if pred_button and selected_courses_df.shape[0] > 0:
