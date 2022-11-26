@@ -121,7 +121,7 @@ def train(model_name, params):
         pass
 
 
-def predict(model_name, user_ids, params, res_dict):
+def predict(model_name, params, res_dict):
     res = None
     # Start making predictions based on model name, test user ids, and parameters
     with st.spinner('Generating course recommendations: '):

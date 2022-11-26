@@ -70,13 +70,14 @@ def add_new_ratings(new_courses, params):
         res_dict['rating']=ratings
         user_df = pd.DataFrame(res_dict)
         
+        #convert the courses of the last entry in the ratings df to an array for comparison
         comp1=ratings_df[ratings_df['user']==max(ratings_df.user)]['item'].values
         
-        st.table(comp1)
+        #do the same for the new user
+        comp2=user_df['item'].values
         
-        st.table(user_df['item'])
-        
-        if not (user_df['item'].values==comp1).all():
+        #write to the dataframe only if these values are not equal
+        if not np.array_equal(comp1,comp2):
             updated_ratings = pd.concat([ratings_df, user_df])
             updated_ratings.to_csv("ratings.csv", index=False)        
         
@@ -105,7 +106,7 @@ def build_profile_vector(courses,new_id):
     cp=np.insert(profile, [0], new_id)    
     dft=pd.DataFrame(cp.reshape(1,-1),columns=profile_df.columns)
     
-    if not (dft.iloc[-1,1:]==profile_df.iloc[-1,1:]).all():
+    if not np.array_equal(dft.iloc[-1,1:], profile_df.iloc[-1,1:]):
         updated_profiles=pd.concat([profile_df, dft])
         updated_profiles.to_csv('profile_df.csv', index=False)
        
