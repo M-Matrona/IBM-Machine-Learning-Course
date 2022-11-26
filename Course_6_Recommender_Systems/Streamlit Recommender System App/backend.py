@@ -70,9 +70,13 @@ def add_new_ratings(new_courses, params):
         res_dict['rating']=ratings
         user_df = pd.DataFrame(res_dict)
         
-        comp1=ratings_df[ratings_df['user']==max(ratings_df.user)]['item']
+        comp1=ratings_df[ratings_df['user']==max(ratings_df.user)]['item'].values
         
-        if not (user_df['item']==comp1).all():
+        st.table(comp1)
+        
+        st.table(user_df['item'])
+        
+        if not (user_df['item'].values==comp1).all():
             updated_ratings = pd.concat([ratings_df, user_df])
             updated_ratings.to_csv("ratings.csv", index=False)        
         
