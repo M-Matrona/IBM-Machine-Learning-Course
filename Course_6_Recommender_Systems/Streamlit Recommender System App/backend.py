@@ -41,7 +41,6 @@ def load_courses():
     df['TITLE'] = df['TITLE'].str.title()
     return df
 
-
 def load_bow():
     return pd.read_csv("courses_bows.csv")
 
@@ -101,7 +100,7 @@ def build_profile_vector(courses,new_id):
     dft=pd.DataFrame(cp.reshape(1,-1),columns=profile_df.columns)
     
     if not (dft.iloc[-1,1:]==profile_df.iloc[-1,1:]).all():
-        updated_profiles= pd.concat([profile_df, dft])
+        updated_profiles=pd.concat([profile_df, dft])
         updated_profiles.to_csv('profile_df.csv', index=False)
     
     
@@ -127,7 +126,7 @@ def course_similarity_recommendations(idx_id_dict, id_idx_dict, enrolled_course_
     res = {k: v for k, v in sorted(res.items(), key=lambda item: item[1], reverse=True)}
     return res
 
-def generate_recommendation_scores_user_profile(user_ids, user_df, params):
+def generate_recommendation_scores_user_profile(user_df, params):
     
     users = []
     courses = []
@@ -139,7 +138,7 @@ def generate_recommendation_scores_user_profile(user_ids, user_df, params):
     idx_id_dict, id_idx_dict=get_doc_dicts()
     profile_df=load_profiles()
     
-    test_user_ids=user_ids
+    test_user_ids=[params['new_user_id']]
     all_courses = set(idx_id_dict.values())
     
     course_genres_df = load_course_genres()
@@ -228,7 +227,7 @@ def predict(model_name, user_ids, params, user_df):
         courses = []
         scores = []
     
-        for user_id in user_ids:
+        for user_id in [params['new_user_id']]:
             # Course Similarity model
             if model_name == models[0]:
                 ratings_df = load_ratings()
@@ -247,10 +246,10 @@ def predict(model_name, user_ids, params, user_df):
         return res_df
     
     elif model_name==models[1]:
-        return generate_recommendation_scores_user_profile(user_ids, user_df, params)
+        return generate_recommendation_scores_user_profile(user_df, params)
     
     elif model_name==models[2]:
-        #train the model on existing data.  Use it for labelleling
+        #train the model on existing data.  Use it for labelling
         kmeans, cluster_df=train_kmeans(params)
         
         #grab the profile vector for the current user.        
@@ -272,11 +271,13 @@ def predict(model_name, user_ids, params, user_df):
         labelled_df['count']=[1]*len(labelled_df)
         
         #aggregate the number of counts
+
         count_df=labelled_df.groupby(['item']).agg('count').sort_values(by='count',ascending=False)
         count_df=count_df[['count']]
         count_df.drop(labels=user_df['item'], errors='ignore',inplace=True)
            
         #list of courses and the number of times they appeared in cluster
+
         courses=list(count_df.index)
         scores=list(count_df['count'])
 

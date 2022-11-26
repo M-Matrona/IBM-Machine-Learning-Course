@@ -151,7 +151,7 @@ st.sidebar.subheader('2. Tune Hyper-parameters: ')
 if model_selection == backend.models[0]:
     # Add a slide bar for selecting top courses
     top_courses = st.sidebar.slider('Top courses',
-                                    min_value=0, max_value=100,
+                                    min_value=0, max_value=15,
                                     value=10, step=1)
     # Add a slide bar for choosing similarity threshold
     course_sim_threshold = st.sidebar.slider('Course Similarity Threshold %',
@@ -166,7 +166,7 @@ if model_selection == backend.models[0]:
 elif model_selection == backend.models[1]:
     
     top_courses = st.sidebar.slider('Top courses',
-                                    min_value=0, max_value=100,
+                                    min_value=0, max_value=15,
                                     value=10, step=1)
     
     
@@ -181,7 +181,7 @@ elif model_selection == backend.models[2]:
     params['cluster_no'] = cluster_no
     
     top_courses = st.sidebar.slider('Top courses',
-                                    min_value=0, max_value=50,
+                                    min_value=0, max_value=15,
                                     value=3, step=1)
     params['top_courses'] = top_courses
 else:
@@ -206,7 +206,7 @@ if pred_button and selected_courses_df.shape[0] > 0:
     params = backend.add_new_ratings(selected_courses_df['COURSE_ID'].values, params)
     
     #the original models took a list of user ids to recommend new courses for each user in the dataset
-    user_ids = [params['new_user_id']]
+    user_ids=[params['new_user_id']]
     user_df=params['user_df']
     
     
