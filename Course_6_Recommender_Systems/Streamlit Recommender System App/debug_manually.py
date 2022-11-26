@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA
 import os
 import pandas as pd
 
-os.chdir(r'C:\Data Science\IBM Machine Learning\Git\IBM-Machine-Learning-Course\Course_6_Recommender_Systems\Streamlit Recommender System App')
+os.chdir(r'C:\Users\mmatr\Desktop\Data Science\IBM Machine Learning\Git\IBM-Machine-Learning-Course\Course_6_Recommender_Systems\Streamlit Recommender System App')
 
 
 def combine_cluster_labels(user_ids, labels):
@@ -69,7 +69,7 @@ def build_profile_vector(courses):
         a=0
     
     
-    return profile,dft,profile_df
+    return profile
 
 
 test_users_df=load_ratings()[['user','item']]

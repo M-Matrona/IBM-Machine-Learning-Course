@@ -126,7 +126,7 @@ def predict(model_name, user_ids, params, res_dict):
     # Start making predictions based on model name, test user ids, and parameters
     with st.spinner('Generating course recommendations: '):
         time.sleep(0.5)
-        res = backend.predict(model_name, user_ids, params,res_dict)
+        res = backend.predict(model_name, params, res_dict)
     st.success('Recommendations generated!')
     return res
 
@@ -214,7 +214,7 @@ if pred_button and selected_courses_df.shape[0] > 0:
     user_df=params['user_df']
     
     
-    res_df = predict(model_selection, user_ids, params, user_df)
+    res_df = predict(model_selection, params, user_df)
     res_df = res_df[['COURSE_ID', 'SCORE']]
     course_df = load_courses()
     res_df = pd.merge(res_df, course_df, on=["COURSE_ID"]).drop('COURSE_ID', axis=1)
