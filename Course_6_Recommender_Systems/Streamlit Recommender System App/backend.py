@@ -253,7 +253,6 @@ def predict(model_name, params):
                         courses.append(key)
                         scores.append(score)
             
-        
         res_df=build_results_df(users, courses, scores, params) 
         
         return res_df
@@ -261,18 +260,25 @@ def predict(model_name, params):
     elif model_name==models[1]:# User Profile Model
         return generate_recommendation_scores_user_profile(params)
     
-    elif model_name==models[2]: # Kmeans Model
-    
+    elif model_name==models[2] or model_name==models[3]: # Kmeans Model
+        
+        #isolate data for this user
         user_df=params['user_df']
-    
-        #train the model on existing data.  Use it for labelling
-        kmeans, cluster_df=train_kmeans(params)
         
         #grab the profile vector for the current user.        
         profile=params['profile']
-        
-        #predict the label of the current user
-        label=float(kmeans.predict(profile.reshape(1,-1)))
+    
+        #train the model on existing data.  Use it for labelling
+        if model_name==models[2]:
+            kmeans, cluster_df, params=train_cluster(model_name,params)
+            profile=params['profile']
+            #predict the label of the current user
+            label=float(kmeans.predict(profile.reshape(1,-1)))
+            
+        elif model_name==models[3]:
+            kmeans, cluster_df, params=train_cluster(model_name,params)
+            profile=params['profile']
+            label=float(kmeans.predict(profile.reshape(1,-1)))
         
         #load the user/enrolled courses data
         test_users_df=load_ratings()[['user','item']]
@@ -302,6 +308,79 @@ def predict(model_name, params):
         res_df=build_results_df(users, courses, scores, params) 
              
         return res_df
+   
+def train_cluster(model_name, params):
+    
+    user_profile_df=load_profiles()
+    feature_names = list(user_profile_df.columns[1:])
+    scaler = StandardScaler()
+    user_profile_df[feature_names]=scaler.fit_transform(user_profile_df[feature_names])
+    
+    features=user_profile_df.loc[:, user_profile_df.columns != 'user']
+    kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
+    
+    if model_name==models[2]:
+        features=user_profile_df.loc[:, user_profile_df.columns != 'user']
+        kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
+        
+        kmeans= KMeans(n_clusters=params['cluster_no'])
+        kmeans.fit(features)
+                 
+        cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
+        
+        #transform the profile vector to fit the model
+        profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
+        params['profile']=profile_transformed
+        
+    elif model_name==models[3]:
+         
+        pca=PCA(params['npc'])
+        pca.fit(features)
+        tf_features=pd.DataFrame(pca.fit_transform(features),columns=[f'PC{i}' for i in range(1, params['npc'] + 1)])
+        
+        scalertf=StandardScaler()
+        tf_features=scalertf.fit_transform(tf_features)
+        
+        kmeans=KMeans(n_clusters=params['cluster_no'])
+        kmeans.fit(tf_features)
+        cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
+        
+        #transform the profile vector to fit the model
+        profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
+        profile_transformed=pca.transform(profile_transformed)
+        profile_transformed=scalertf.transform(profile_transformed)
+        params['profile']=profile_transformed
+    
+    return kmeans, cluster_df, params
+    
+def fit_pca(params):
+    
+    user_profile_df=load_profiles()
+    feature_names = list(user_profile_df.columns[1:])
+    scaler = StandardScaler()
+    user_profile_df[feature_names]=scaler.fit_transform(user_profile_df[feature_names])
+    
+    features=user_profile_df.loc[:, user_profile_df.columns != 'user']
+    kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
+    
+    pca=PCA(params['npc'])
+    pca.fit(features)
+    tf_features=pd.DataFrame(pca.fit_transform(features),columns=[f'PC{i}' for i in range(1, params['npc'] + 1)])
+    
+    scalertf=StandardScaler()
+    tf_features=scalertf.fit_transform(tf_features)
+    
+    kmeans_pca=KMeans(n_clusters=params['cluster_no'])
+    kmeans_pca.fit(tf_features)
+    cluster_df=combine_cluster_labels(kmeans_ids, kmeans_pca.labels_)
+    
+    #transform the profile vector to fit the model
+    profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
+    profile_transformed=pca.transform(profile_transformed)
+    profile_transformed=scalertf.transform(profile_transformed)
+    params['profile']=profile_transformed
+    
+    return kmeans_pca, cluster_df, params
     
 def train_kmeans(params):
     
@@ -309,13 +388,21 @@ def train_kmeans(params):
     feature_names = list(user_profile_df.columns[1:])
     scaler = StandardScaler()
     user_profile_df[feature_names]=scaler.fit_transform(user_profile_df[feature_names])
+    
+    
     features=user_profile_df.loc[:, user_profile_df.columns != 'user']
     kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
+    
     kmeans= KMeans(n_clusters=params['cluster_no'])
     kmeans.fit(features)
              
     cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
     
-    return kmeans, cluster_df
+    #transform the profile vector to fit the model
+    profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
+    params['profile']=profile_transformed
+    
+    
+    return kmeans, cluster_df, params
 
 # 

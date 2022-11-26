@@ -115,7 +115,7 @@ def train(model_name, params):
         st.success('Done!')
         
     else:
-        pass
+        st.success('Done!')
 
 
 def predict(model_name, params):
@@ -172,7 +172,7 @@ elif model_selection == backend.models[1]:
     params['top_courses'] = top_courses
     
 # Clustering model
-elif model_selection == backend.models[2]:
+elif model_selection == backend.models[2] or model_selection == backend.models[3]:
     
     cluster_no = st.sidebar.slider('Number of Clusters',
                                    min_value=0, max_value=50,
@@ -185,6 +185,24 @@ elif model_selection == backend.models[2]:
                                     value=3, step=1)
     
     params['top_courses'] = top_courses
+    
+    if model_selection == backend.models[3]:
+        
+        npc = st.sidebar.slider('Principal Components',
+                                        min_value=0, max_value=14,
+                                        value=9, step=1)
+        
+        params['npc'] = npc 
+        
+        
+        ncomp=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+        evr=[0.288, 0.463, 0.576, 0.649, 0.719, 0.788, 0.843,
+              0.894, 0.927, 0.954, 0.973, 0.987, 0.998, 1.0]
+        
+        evr_df=pd.DataFrame({'Number of Components': ncomp, "Explained Varience Ratio": evr})
+        
+        st.sidebar.table(evr_df)
+     
     
 else:
     pass
