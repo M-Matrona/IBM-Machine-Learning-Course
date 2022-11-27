@@ -8,6 +8,12 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+#surprise
+from surprise import KNNBasic
+from surprise import Dataset, Reader
+from surprise.model_selection import train_test_split
+from surprise import accuracy
+
 models = ("Course Similarity",
           "User Profile",
           "Clustering",
@@ -265,26 +271,20 @@ def predict(model_name, params):
         #isolate data for this user
         user_df=params['user_df']
         
-        #grab the profile vector for the current user.        
-        profile=params['profile']
-    
         #train the model on existing data.  Use it for labelling
-        if model_name==models[2]:
-            kmeans, cluster_df, params=train_cluster(model_name,params)
-            profile=params['profile']
-            #predict the label of the current user
-            label=float(kmeans.predict(profile.reshape(1,-1)))
-            
-        elif model_name==models[3]:
-            kmeans, cluster_df, params=train_cluster(model_name,params)
-            profile=params['profile']
-            label=float(kmeans.predict(profile.reshape(1,-1)))
+        kmeans, cluster_df, params=train_cluster(model_name,params)
+        
+        #grab the profile vector for the current user
+        profile=params['profile']
+        
+        #predict the label of the current user
+        label=float(kmeans.predict(profile.reshape(1,-1)))
         
         #load the user/enrolled courses data
         test_users_df=load_ratings()[['user','item']]
         
         #label the rating data with clusters
-        test_users_labelled = pd.merge(test_users_df, cluster_df, left_on='user', right_on='user')
+        test_users_labelled=pd.merge(test_users_df, cluster_df, left_on='user', right_on='user')
         
         #keep only the data of the cluster of interest
         labelled_df=test_users_labelled[test_users_labelled['cluster']==label]
@@ -293,63 +293,118 @@ def predict(model_name, params):
         labelled_df['count']=[1]*len(labelled_df)
         
         #aggregate the number of counts
-
         count_df=labelled_df.groupby(['item']).agg('count').sort_values(by='count',ascending=False)
         count_df=count_df[['count']]
+        
+        #drop the courses the user has already taken
         count_df.drop(labels=user_df['item'], errors='ignore',inplace=True)
            
         #list of courses and the number of times they appeared in cluster
-
         courses=list(count_df.index)
         scores=list(count_df['count'])
 
+        #this is only required so build_results_df can be called
         users=[params['new_user_id']]*len(courses)
         
+        #build a df containing recommendation results
         res_df=build_results_df(users, courses, scores, params) 
              
         return res_df
+    
+    elif model_name == models[4]:
+        
+        user_df=params['user_df']
+        
+        #load user profile vectors
+        user_profile_df=load_profiles()
+        
+        #load the ratings df into the trainset object
+        reader = Reader(line_format='user item rating', sep=',', skip_lines=1, rating_scale=(2, 3))
+        course_dataset = Dataset.load_from_file("ratings.csv", reader=reader)
+        
+        #we will be using the full training set for the application
+        trainset=course_dataset.build_full_trainset()
+        
+        #hyperparameter grid.  
+        sim_options={'name': 'cosine', 'user_based': False}
+
+        knn=KNNBasic(sim_options=sim_options)
+
+        # - Train the KNNBasic model on the trainset, and predict ratings for the testset
+        knn.fit(trainset)
+    
+       # read in the data on the current user
+        enrolled_courses=set(user_df.item)
+       
+        #set of all courses
+        ratings_df=load_ratings()
+        all_courses=set(ratings_df.item)
+       
+        #courses that user has not interacted with
+        unknown_courses = all_courses.difference(enrolled_courses)
+     
+        #current user id
+        user_id=params['new_user_id']
+       
+       
+        courses=[]
+        scores=[]
+        users=[]
+        predictions=[]
+       
+        #get a prediction for every course in the unknown courses
+        for course in unknown_courses:
+            predictions.append(knn.predict(uid=user_id,iid=course))
+           
+          
+        for prediction in predictions:
+            if prediction.est < 2.9:
+                scores.append(prediction.est)
+                courses.append(prediction.iid)
+                users.append(prediction.uid)
+               
+        #build a df containing recommendation results
+        res_df=build_results_df(users, courses, scores, params) 
+             
+        return res_df
+    
    
 def train_cluster(model_name, params):
     
+    #load and scale user profile vectors
     user_profile_df=load_profiles()
     feature_names = list(user_profile_df.columns[1:])
     scaler = StandardScaler()
     user_profile_df[feature_names]=scaler.fit_transform(user_profile_df[feature_names])
     
+    #separate features for model from user ids
     features=user_profile_df.loc[:, user_profile_df.columns != 'user']
     kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
     
-    if model_name==models[2]:
-        features=user_profile_df.loc[:, user_profile_df.columns != 'user']
-        kmeans_ids=user_profile_df.loc[:, user_profile_df.columns == 'user']
+    #transform the profile vector to fit the model
+    profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
+    
+    if model_name==models[3]:
         
-        kmeans= KMeans(n_clusters=params['cluster_no'])
-        kmeans.fit(features)
-                 
-        cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
-        
-        #transform the profile vector to fit the model
-        profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
-        params['profile']=profile_transformed
-        
-    elif model_name==models[3]:
-         
+         #initialize PCA object
         pca=PCA(params['npc'])
-        pca.fit(features)
-        tf_features=pd.DataFrame(pca.fit_transform(features),columns=[f'PC{i}' for i in range(1, params['npc'] + 1)])
         
-        scalertf=StandardScaler()
-        tf_features=scalertf.fit_transform(tf_features)
+        #apply pca to the features for clustering
+        features=pd.DataFrame(pca.fit_transform(features),columns=[f'PC{i}' for i in range(1, params['npc'] + 1)])
         
-        kmeans=KMeans(n_clusters=params['cluster_no'])
-        kmeans.fit(tf_features)
-        cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
-        
-        #transform the profile vector to fit the model
-        profile_transformed=scaler.transform(params['profile'].reshape(1,-1))
+        #transform the user profile vector
         profile_transformed=pca.transform(profile_transformed)
-        profile_transformed=scalertf.transform(profile_transformed)
-        params['profile']=profile_transformed
+        
+        
+    #fit KNN and label user data with the appropriate clusters
+    kmeans=KMeans(n_clusters=params['cluster_no'])
+    kmeans.fit(features)
+    cluster_df=combine_cluster_labels(kmeans_ids, kmeans.labels_)
+    
+    #the following is to write the distribution of clusters to the screen if desired
+    agg_clust=cluster_df.groupby('cluster').size().reset_index().rename({0:'instances'},axis=1)    
+        
+    params['profile']=profile_transformed
     
     return kmeans, cluster_df, params
     

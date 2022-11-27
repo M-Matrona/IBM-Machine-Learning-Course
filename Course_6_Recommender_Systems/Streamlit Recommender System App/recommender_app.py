@@ -144,12 +144,15 @@ model_selection = st.sidebar.selectbox(
 # Hyper-parameters for each model
 params = {}
 st.sidebar.subheader('2. Tune Hyper-parameters: ')
+
+MaxReturnedCourses=50
+
 # Course similarity model
 if model_selection == backend.models[0]:
     
     # Add a slide bar for selecting top courses
     top_courses = st.sidebar.slider('Top courses',
-                                    min_value=0, max_value=15,
+                                    min_value=0, max_value=MaxReturnedCourses,
                                     value=10, step=1)
     
     # Add a slide bar for choosing similarity threshold
@@ -165,7 +168,7 @@ if model_selection == backend.models[0]:
 elif model_selection == backend.models[1]:
     
     top_courses = st.sidebar.slider('Top courses',
-                                    min_value=0, max_value=15,
+                                    min_value=0, max_value=MaxReturnedCourses,
                                     value=10, step=1)
     
     
@@ -176,13 +179,13 @@ elif model_selection == backend.models[2] or model_selection == backend.models[3
     
     cluster_no = st.sidebar.slider('Number of Clusters',
                                    min_value=0, max_value=50,
-                                   value=20, step=1)
+                                   value=16, step=1)
     
     params['cluster_no'] = cluster_no
     
     top_courses = st.sidebar.slider('Top courses',
-                                    min_value=0, max_value=15,
-                                    value=3, step=1)
+                                    min_value=0, max_value=MaxReturnedCourses,
+                                    value=10, step=1)
     
     params['top_courses'] = top_courses
     
@@ -199,10 +202,13 @@ elif model_selection == backend.models[2] or model_selection == backend.models[3
         evr=[0.288, 0.463, 0.576, 0.649, 0.719, 0.788, 0.843,
               0.894, 0.927, 0.954, 0.973, 0.987, 0.998, 1.0]
         
-        evr_df=pd.DataFrame({'Number of Components': ncomp, "Explained Varience Ratio": evr})
+        evr_df=pd.DataFrame({'Number of Components': ncomp[2:10], "Explained Varience Ratio": evr[2:10]})
         
         st.sidebar.table(evr_df)
      
+# elif model_selection == backend.models[4]:
+#     pass
+    
     
 else:
     pass
@@ -226,11 +232,10 @@ if pred_button and selected_courses_df.shape[0] > 0:
     
     user_df=params['user_df']
     
-    
     res_df = predict(model_selection, params)
     res_df = res_df[['COURSE_ID', 'SCORE']]
     course_df = load_courses()
-    res_df = pd.merge(res_df, course_df, on=["COURSE_ID"]).drop('COURSE_ID', axis=1)
+    res_df = pd.merge(res_df, course_df, on=["COURSE_ID"])#.drop('COURSE_ID', axis=1)
     st.table(res_df)
     
 elif pred_button and selected_courses_df.shape[0] == 0:
