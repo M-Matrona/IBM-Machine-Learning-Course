@@ -86,6 +86,8 @@ def add_new_ratings(new_courses, params):
         if not np.array_equal(comp1,comp2):
             updated_ratings = pd.concat([ratings_df, user_df])
             updated_ratings.to_csv("ratings.csv", index=False)        
+        else:
+            new_id=new_id - 1
         
         profile=build_profile_vector(new_courses,new_id)
         
@@ -314,38 +316,41 @@ def predict(model_name, params):
     elif model_name == models[4]:
         
         user_df=params['user_df']
+        ratings_df=load_ratings()
         
         #load user profile vectors
         user_profile_df=load_profiles()
         
-        #load the ratings df into the trainset object
-        reader = Reader(line_format='user item rating', sep=',', skip_lines=1, rating_scale=(2, 3))
+        # Read the course rating dataset with columns user item rating
+        reader = Reader(
+                line_format='user item rating', sep=',', skip_lines=1, rating_scale=(2, 3))
+
         course_dataset = Dataset.load_from_file("ratings.csv", reader=reader)
         
         #we will be using the full training set for the application
         trainset=course_dataset.build_full_trainset()
         
         #hyperparameter grid.  
-        sim_options={'name': 'cosine', 'user_based': False}
+        sim_options={'name': 'pearson', 'user_based': False, 'k':10, 'min_k':1}
 
         knn=KNNBasic(sim_options=sim_options)
 
+        
         # - Train the KNNBasic model on the trainset, and predict ratings for the testset
         knn.fit(trainset)
-    
-       # read in the data on the current user
+        
+        pd.DataFrame(knn.compute_similarities()).to_csv('sim_pearson.csv')
+        # read in the data on the current user
         enrolled_courses=set(user_df.item)
-       
+        
         #set of all courses
-        ratings_df=load_ratings()
         all_courses=set(ratings_df.item)
        
         #courses that user has not interacted with
-        unknown_courses = all_courses.difference(enrolled_courses)
+        unknown_courses=all_courses.difference(enrolled_courses)
      
         #current user id
         user_id=params['new_user_id']
-       
        
         courses=[]
         scores=[]
@@ -354,15 +359,17 @@ def predict(model_name, params):
        
         #get a prediction for every course in the unknown courses
         for course in unknown_courses:
-            predictions.append(knn.predict(uid=user_id,iid=course))
-           
-          
+            predictions.append(knn.predict(uid=str(user_id),iid=course))
+            
+        
         for prediction in predictions:
-            if prediction.est < 2.9:
+
+            if not prediction.details['was_impossible']:
                 scores.append(prediction.est)
                 courses.append(prediction.iid)
                 users.append(prediction.uid)
-               
+                
+                   
         #build a df containing recommendation results
         res_df=build_results_df(users, courses, scores, params) 
              

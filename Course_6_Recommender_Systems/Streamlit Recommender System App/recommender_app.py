@@ -127,6 +127,20 @@ def predict(model_name, params):
     st.success('Recommendations generated!')
     return res
 
+def show_train_button():
+    # Training
+    st.sidebar.subheader('3. Training: ')
+    training_button = st.sidebar.button("Train Model")
+    training_text = st.sidebar.text('')
+    # Start training process
+    if training_button:
+        train(model_selection, params)
+        
+    pred_head=4
+
+    
+    return pred_head
+
 
 # ------ UI ------
 # Sidebar
@@ -144,6 +158,10 @@ model_selection = st.sidebar.selectbox(
 # Hyper-parameters for each model
 params = {}
 st.sidebar.subheader('2. Tune Hyper-parameters: ')
+
+#sidebar header for prediction
+
+pred_head = 3
 
 MaxReturnedCourses=50
 
@@ -206,23 +224,20 @@ elif model_selection == backend.models[2] or model_selection == backend.models[3
         
         st.sidebar.table(evr_df)
      
-# elif model_selection == backend.models[4]:
-#     pass
+elif model_selection == backend.models[4]:
+    
+    top_courses = st.sidebar.slider('Top courses',
+                                    min_value=0, max_value=MaxReturnedCourses,
+                                    value=10, step=1)
     
     
+    params['top_courses'] = top_courses
+       
 else:
     pass
 
-# Training
-st.sidebar.subheader('3. Training: ')
-training_button = st.sidebar.button("Train Model")
-training_text = st.sidebar.text('')
-# Start training process
-if training_button:
-    train(model_selection, params)
-
 # Prediction
-st.sidebar.subheader('4. Prediction')
+st.sidebar.subheader(f'{pred_head}. Prediction')
 
 # Start prediction process
 pred_button = st.sidebar.button("Recommend New Courses")
