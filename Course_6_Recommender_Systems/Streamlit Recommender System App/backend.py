@@ -18,11 +18,11 @@ models = ("Course Similarity",
           "User Profile",
           "Clustering",
           "Clustering with PCA",
-          "KNN",
-          "NMF",
-          "Neural Network",
-          "Regression with Embedding Features",
-          "Classification with Embedding Features")
+          "KNN")
+          # "NMF",
+          # "Neural Network",
+          # "Regression with Embedding Features",
+          # "Classification with Embedding Features")
 
 """
 idx_id_dict - dictionary of key:doc_index to value:doc_id
