@@ -66,16 +66,21 @@ def get_doc_dicts():
 def add_new_ratings(new_courses, params):
     res_dict = {}
     if len(new_courses) > 0:
-        # Create a new user id, max id + 1
+        # Create a new user id, max id + 1 in the ratings.csv file
         ratings_df=load_ratings()
+        # Set new ID
         new_id=ratings_df['user'].max() + 1
+        # Give each course selected a rating of 3
         users=[new_id] * len(new_courses)
         ratings=[3.0] * len(new_courses)
+        # Store new user results into a new Dataframe 
         res_dict['user']=users
         res_dict['item']=new_courses
         res_dict['rating']=ratings
         user_df = pd.DataFrame(res_dict)
-        
+        #
+        # The following ensures that the same user doesn't get added twice.
+        #
         #convert the courses of the last entry in the ratings df to an array for comparison
         comp1=ratings_df[ratings_df['user']==max(ratings_df.user)]['item'].values
         
@@ -104,16 +109,17 @@ def build_profile_vector(courses,new_id):
     
     profile=np.zeros(14) #empty profile series
     
+    # Populate the new users profile vector, which indicates their interest in each genre.
     for course in courses:
-        profile=profile + np.array(course_genres_df[course_genres_df['COURSE_ID']==course].iloc[0,2:])*3.0
-        
-    # """
-    # turned off adding to csvs for same reason as above
-    # """    
+        profile=profile + np.array(course_genres_df[course_genres_df['COURSE_ID']==course].iloc[0,2:])*3.0 
     
     cp=np.insert(profile, [0], new_id)    
     dft=pd.DataFrame(cp.reshape(1,-1),columns=profile_df.columns)
     
+    #
+    # Ensure we are not adding the same profile two times in a row.
+    #
+
     if not np.array_equal(dft.iloc[-1,1:], profile_df.iloc[-1,1:]):
         updated_profiles=pd.concat([profile_df, dft])
         updated_profiles.to_csv('profile_df.csv', index=False)
@@ -150,7 +156,6 @@ def generate_recommendation_scores_user_profile(params):
     
     score_threshold = 0.6
     
-    
     idx_id_dict, id_idx_dict=get_doc_dicts()
     profile_df=load_profiles()
     
@@ -177,6 +182,9 @@ def generate_recommendation_scores_user_profile(params):
         
         # user np.dot() to get the recommendation scores for each course
         unknown_course_genres=unknown_course_df.iloc[:,2:].values
+
+        # np.dot is the same as the matrix product for appropriately sized arrays.
+        
         recommendation_scores = np.dot(test_user_vector,unknown_course_genres.T)
         
         
